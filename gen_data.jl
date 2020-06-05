@@ -80,7 +80,7 @@ function NLGDS(transition_function,
     y = zeros(d, time_horizon)
 
     # Prior parameters
-    mean0, var0 = prior_params
+    mean0, var0 = state0_params
 
     # Initialize state
     x[:, 1] = sqrt(var0)*randn(d) .+ mean0
