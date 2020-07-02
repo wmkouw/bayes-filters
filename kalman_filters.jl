@@ -10,6 +10,8 @@ Wouter Kouw
 using Distributions
 using Random
 
+include("util.jl")
+
 function kalman_filter(observations,
                        transition_matrix,
                        emission_matrix,
@@ -75,7 +77,12 @@ function kalman_filter(observations,
     return mx, Px
 end
 
-function extended_kalman_filter(observations)
+function extended_kalman_filter(observations::Array{Float64,2},
+                                transition_function::Function,
+                                emission_function::Function,
+                                process_noise::Array{Float64,2},
+                                measurement_noise::Array{Float64,2},
+                                state0::Tuple{Array{Float64,1}, Array{Float64,2}})
     """
     Extended Kalman filter with additive noise (Alg. 5.4)
 
@@ -83,10 +90,66 @@ function extended_kalman_filter(observations)
     transition coefficients, process and measurement noise.
     """
 
+    # Dimensionality
+    Dx = size(process_noise,1)
+    Dy = size(measurement_noise,1)
+
+    # Recast process noise to matrix
+    if Dx == 1
+        if typeof(process_noise) != Array{Float64,2}
+            process_noise = reshape([process_noise], 1, 1)
+        end
+        if typeof(measurement_noise) != Array{Float64,2}
+            measurement_noise = reshape([measurement_noise], 1, 1)
+        end
+    end
+
     # Time horizon
     time_horizon = length(observations)
 
-    return
+    # Initialize estimate arrays
+    mx = zeros(Dx, time_horizon)
+    Px = zeros(Dx, Dx, time_horizon)
+
+    # Initial state prior
+    m_0, P_0 = state0
+
+    # Start previous state variable
+    m_tmin = m_0
+    P_tmin = P_0
+
+    for t = 1:time_horizon
+
+        # Compute Jacobian at previous mean
+        Fx = Jacobian(transition_function, m_tmin)
+        Hx = Jacobian(emission_function, m_tmin)
+
+        "Prediction step"
+
+        # Compute predicted mean
+        m_t_pred = transition_function(m_tmin)
+
+        # Compute predicted covariance
+        P_t_pred = Fx*P_tmin*Fx' + process_noise
+
+        "Update step"
+
+        # Update equations
+        v_t = observations[:,t] .- emission_function(m_t_pred)
+        S_t = Hx*P_t_pred*Hx' .+ measurement_noise
+        K_t = P_t_pred*Hx'*inv(S_t)
+        m_t = m_t_pred .+ K_t*v_t
+        P_t = P_t_pred .- K_t*S_t*K_t'
+
+        # Store estimates
+        mx[:,t] = m_t
+        Px[:,:,t] = P_t
+
+        # Update previous state variable
+        m_tmin = m_t
+        P_tmin = P_t
+    end
+    return mx, Px
 end
 
 function unscented_kalman_filter(observations::Array{Float64,2},
