@@ -1,3 +1,4 @@
+using LinearAlgebra
 using Distributions
 using Plots
 
@@ -49,7 +50,7 @@ mx, Px = kalman_filter(observations,
                        state0)
 
 # Visualize estimates
-scatter(1:T, observations[1,:], color="blue", label="observations")
+scatter(1:T, observations[1,:], color="black", label="observations")
 plot!(1:T, states[1,2:end], color="red", label="latent states")
 plot!(1:T, mx[:], color="purple", label="inferred")
 plot!(1:T, mx[:],
@@ -62,7 +63,7 @@ savefig("./viz/LGDS_kf.png")
 "Generate data"
 
 # Nonlinearities
-transition_function(x) = .01*x.^3 + 0.5*x
+transition_function(x) = .1*x.^3 + 0.5*x
 emission_function(x) = x
 
 # Noises
@@ -78,7 +79,7 @@ observations, states = NLGDS(transition_function,
                              time_horizon=T)
 
 # Check signal visually
-scatter(1:T, observations, color="blue", label="observations")
+scatter(1:T, observations, color="black", label="observations")
 plot!(1:T, states[2:end], color="red", label="states")
 
 """Nonlinear Kalman filter"""
@@ -91,25 +92,8 @@ mx1, Px1 = kalman_filter(observations,
                          measurement_noise,
                          state0)
 
-# Call extended filter
-mx2, Px2 = extended_kalman_filter(observations,
-                                 transition_function,
-                                 emission_function,
-                                 process_noise,
-                                 measurement_noise,
-                                 state0)
-
-# Call unscented filter
-mx3, Px3 = unscented_kalman_filter(observations,
-                                   transition_function,
-                                   emission_function,
-                                   process_noise,
-                                   measurement_noise,
-                                   state0,
-                                   α=1., κ=0., β=2.)
-
 # Visualize estimates
-p1 = scatter(1:T, observations[1,:], color="blue", label="observations", size=(1200,500))
+p1 = scatter(1:T, observations[1,:], color="black", label="observations", size=(1200,500))
 plot!(1:T, states[1,2:end], color="red", label="latent states")
 plot!(1:T, mx1[:], color="purple", label="linear")
 plot!(1:T, mx1[:],
@@ -119,7 +103,15 @@ xlabel!("time (t)")
 ylabel!("signal")
 savefig(p1, "./viz/NLGDS_KF.png")
 
-p2 = scatter(1:T, observations[1,:], color="blue", label="observations", size=(1200,500))
+# Call extended filter with first-order Taylor
+mx2, Px2 = extended_kalman_filter(observations,
+                                  transition_function,
+                                  emission_function,
+                                  process_noise,
+                                  measurement_noise,
+                                  state0)
+
+p2 = scatter(1:T, observations[1,:], color="black", label="observations", size=(1200,500))
 plot!(1:T, states[1,2:end], color="red", label="latent states")
 plot!(1:T, mx2[:], color="blue", label="extended")
 plot!(1:T, mx2[:],
@@ -127,17 +119,45 @@ plot!(1:T, mx2[:],
       color="blue", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(p2, "./viz/NLGDS_EKF.png")
+savefig(p2, "./viz/NLGDS_E1KF.png")
 
-p3 = scatter(1:T, observations[1,:], color="blue", label="observations", size=(1200,500))
+# Call extended filter with second-order Taylor
+mx3, Px3 = extended_kalman_filter(observations,
+                                  transition_function,
+                                  emission_function,
+                                  process_noise,
+                                  measurement_noise,
+                                  state0,
+                                  second_order=true)
+
+p3 = scatter(1:T, observations[1,:], color="black", label="observations", size=(1200,500))
 plot!(1:T, states[1,2:end], color="red", label="latent states")
-plot!(1:T, mx3[:], color="green", label="unscented")
+plot!(1:T, mx3[:], color="cyan", label="extended")
 plot!(1:T, mx3[:],
-      ribbon=[sqrt.(Px3[1,1,:]), sqrt.(Px3[1,1,:])],
+    ribbon=[sqrt.(Px3[1,1,:]), sqrt.(Px3[1,1,:])],
+    color="cyan", alpha=0.1, label="")
+xlabel!("time (t)")
+ylabel!("signal")
+savefig(p3, "./viz/NLGDS_E2KF.png")
+
+# Call unscented filter
+mx4, Px4 = unscented_kalman_filter(observations,
+                                   transition_function,
+                                   emission_function,
+                                   process_noise,
+                                   measurement_noise,
+                                   state0,
+                                   α=1., κ=0., β=2.)
+
+p4 = scatter(1:T, observations[1,:], color="black", label="observations", size=(1200,500))
+plot!(1:T, states[1,2:end], color="red", label="latent states")
+plot!(1:T, mx4[:], color="green", label="unscented")
+plot!(1:T, mx4[:],
+      ribbon=[sqrt.(Px4[1,1,:]), sqrt.(Px4[1,1,:])],
       color="green", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(p2, "./viz/NLGDS_UKF.png")
+savefig(p4, "./viz/NLGDS_UKF.png")
 
-plot(p1, p2, p3, layout=(3,1), size=(3000,1200))
+plot(p1, p2, p3, p4, layout=(4,1), size=(2000,1600))
 savefig("./viz/NLGDS_filters.png")

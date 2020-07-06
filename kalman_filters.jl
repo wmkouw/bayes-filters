@@ -82,9 +82,12 @@ function extended_kalman_filter(observations::Array{Float64,2},
                                 emission_function::Function,
                                 process_noise::Array{Float64,2},
                                 measurement_noise::Array{Float64,2},
-                                state0::Tuple{Array{Float64,1}, Array{Float64,2}})
+                                state0::Tuple{Array{Float64,1}, Array{Float64,2}};
+                                second_order=false)
     """
-    Extended Kalman filter with additive noise (Alg. 5.4)
+    Extended Kalman filter for additive noise case
+        First-order Taylor approximation = Alg 5.4 (Särkkä - BF&S)
+        Second-order Taylor approxumation = Alg 5.6 (Särkkä - BF&S)
 
     This filter is built for a linear Gaussian dynamical system with known
     transition coefficients, process and measurement noise.
@@ -120,23 +123,75 @@ function extended_kalman_filter(observations::Array{Float64,2},
 
     for t = 1:time_horizon
 
-        # Compute Jacobian at previous mean
-        Fx = Jacobian(transition_function, m_tmin)
-        Hx = Jacobian(emission_function, m_tmin)
-
         "Prediction step"
+
+        # Compute Jacobian evaluated at previous mean
+        Fx = Jacobian(transition_function, m_tmin)
+
+        if second_order
+            # Compute per-element Hessian evaluated at previous mean
+            Fxx = Hessian(transition_function, m_tmin)
+        end
 
         # Compute predicted mean
         m_t_pred = transition_function(m_tmin)
 
+        # Add second-order term from Taylor approx
+        if second_order
+            nn = length(m_t_pred)
+            e = zeros(nn,)
+            for i = 1:nn
+                e[i] = tr(Fxx[i,:,:]*P_tmin)
+            end
+            m_t_pred += 1/2. *e
+        end
+
         # Compute predicted covariance
         P_t_pred = Fx*P_tmin*Fx' + process_noise
 
+        # Add second-order term from Taylor approx
+        if second_order
+            nn = length(m_t_pred)
+            E = zeros(nn,nn)
+            for i = 1:nn
+                for j = 1:nn
+                    E[i,j] = tr(Fxx[i,:,:]*P_tmin*Fxx[j,:,:]*P_tmin)
+                end
+            end
+            P_t_pred += 1/2. *E
+        end
+
         "Update step"
+
+        # Compute Jacobian evaluated at predicted mean
+        Hx = Jacobian(emission_function, m_t_pred)
+
+        if second_order
+            # Compute per-element Hessian evaluated at predicted mean
+            Hxx = Hessian(emission_function, m_t_pred)
+        end
 
         # Update equations
         v_t = observations[:,t] .- emission_function(m_t_pred)
         S_t = Hx*P_t_pred*Hx' .+ measurement_noise
+
+        if second_order
+            nn = length(m_t_pred)
+            e = zeros(nn,)
+            for i = 1:nn
+                e[i] = tr(Hxx[i,:,:]*P_t_pred)
+            end
+            v_t += -1/2. *e
+
+            E = zeros(nn,nn)
+            for i = 1:nn
+                for j = 1:nn
+                    E[i,j] = tr(Hxx[i,:,:]*P_t_pred*Hxx[j,:,:]*P_t_pred)
+                end
+            end
+            S_t += -1/2. *E
+        end
+
         K_t = P_t_pred*Hx'*inv(S_t)
         m_t = m_t_pred .+ K_t*v_t
         P_t = P_t_pred .- K_t*S_t*K_t'
