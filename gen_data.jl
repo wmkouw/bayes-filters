@@ -1,4 +1,4 @@
- """
+"""
 Set of functions for generating signals.
 """
 
