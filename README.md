@@ -10,6 +10,9 @@ Collection contains:
 - Extended Kalman filter
 - Unscented Kalman filter
 
+- Student's t filter
+- Robust Student's t filter
+
 - Sequential importance (re)sampling
 - Bootstrap particle filter
 - Rao-Blackwellized particle filter
