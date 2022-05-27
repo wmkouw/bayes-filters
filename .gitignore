@@ -26,5 +26,7 @@ Manifest.toml
 # Ignore Matlab files
 *.m
 
+# Local
+archive
 .vscode
 .ipynb_checkpoints
