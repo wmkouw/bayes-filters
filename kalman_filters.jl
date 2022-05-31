@@ -17,7 +17,8 @@ function kalman_filter(observations,
                        emission_matrix,
                        process_noise,
                        measurement_noise,
-                       state0)
+                       state0;
+                       time_horizon=100)
     """
     Kalman filter (Th. 4.2)
 
@@ -38,9 +39,6 @@ function kalman_filter(observations,
             measurement_noise = reshape([measurement_noise], 1, 1)
         end
     end
-
-    # Time horizon
-    time_horizon = length(observations)
 
     # Initialize estimate arrays
     mx = zeros(Dx, time_horizon)
