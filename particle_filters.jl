@@ -1,11 +1,5 @@
 """
-Implementations of particle filters, also referred to as sequential importance
-sampling, and variants thereof.
-
-Algorithms based on Bayesian Filtering & Smoothing (Särkka, 2014)
-
-Wouter Kouw
-19-12-2019
+Bayesian filters with monte carlo sampling for aproximating posterior distributions.
 """
 
 using Distributions

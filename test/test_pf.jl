@@ -1,9 +1,8 @@
 using Distributions
 using Plots
-pyplot()
 
-include("gen_data.jl")
-include("particle_filters.jl")
+include("../demos/gen_data.jl")
+include("../particle_filters.jl")
 
 """Experimental parameters"""
 
