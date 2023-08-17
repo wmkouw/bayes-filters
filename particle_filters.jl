@@ -5,6 +5,7 @@ Bayesian filters with monte carlo sampling for aproximating posterior distributi
 using Distributions
 using Random
 
+
 function sequential_importance_sampling(observations,
                                         nominal_state_transition,
                                         nominal_likelihood;

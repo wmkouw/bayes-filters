@@ -5,7 +5,8 @@ Bayesian filters with closed-form parametric solutions.
 using Distributions
 using Random
 
-include("util.jl")
+include("util/calculus.jl")
+
 
 function kalman_filter(observations,
                        transition_matrix,
