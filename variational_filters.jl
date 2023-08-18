@@ -111,19 +111,19 @@ function robust_students_t_filter(observations,
     return mx, Px, qΣ#, qλ, qξ
 end
 
-function adaptive_transition(observations::Vector{Vector{Float64}},
-                             Q::Matrix, C::Matrix, R::Matrix,
-                             ard_prior::Vector{Gamma{Float64}}, 
-                             state_prior::FullNormal;
-                             num_iters::Integer=10)
+function AX_filter(observations::Vector{Vector{Float64}},
+                   C::Matrix, R::Matrix,
+                   ard_prior::Vector{Gamma{Float64}}, 
+                   state_prior::FullNormal;
+                   num_iters::Integer=10)
     """
     Ref: Lutinnen (2013). Fast Variational Bayesian Linear State-Space Model. ECML.
 
-    This filter infers both states and state transition matrix elements.
+    This filter infers both states X and state transition matrix A elements.
     """
 
     T = length(observations)
-    D = size(Q,1)
+    D = size(C,2)
 
     m0,S0 = params(state_prior)
     α0    = shape.(ard_prior)
@@ -132,12 +132,12 @@ function adaptive_transition(observations::Vector{Vector{Float64}},
     # Preallocate
     m = zeros(D,T)
     S = cat([diagm(ones(D)) for k in 1:T]...,dims=3)
-    μ = zeros(D,D)
+    μ = diagm(ones(D))
     Σ = cat([diagm(ones(D)) for d in 1:D]...,dims=3)
     α = ones(D)
     β = ones(D)
 
-    for n = 1:num_iters
+    for _ = 1:num_iters
 
         "State estimation"
 
@@ -148,22 +148,21 @@ function adaptive_transition(observations::Vector{Vector{Float64}},
             end
         end
 
-        S_kmin1 = inv(inv(S0) + AA)
-        m_kmin1 = S_kmin1*inv(S0)*m0
-
         Ψ_diag = diagm(ones(D)) + AA + C'*inv(R)*C
         Ψ_offd = -μ'
 
-        for k = 1:T-1
+        S_kmin1 = inv(inv(S0) + AA)
+        m_kmin1 = S_kmin1*inv(S0)*m0
 
+        # Forward pass
+        for k = 1:T-1
             v_k = C*inv(R)*observations[k]
             S_pred = S_kmin1*Ψ_offd
             S[:,:,k] = inv(Ψ_diag - S_pred'*Ψ_offd)
             m[:,k] = S[:,:,k]*(v_k - S_pred'*m_kmin1)
-
+            
             S_kmin1 = S[:,:,k]
             m_kmin1 = m[:,k]
-
         end
 
         # Update for final step
@@ -174,14 +173,14 @@ function adaptive_transition(observations::Vector{Vector{Float64}},
 
         "Parameter estimation"
         
+        # Update relevance variables
         for d in 1:D
-            # Update relevance variables
             α[d] = α0[d] + D/2
             β[d] = β0[d] + 1/2*sum([μ[j,d]^2 + Σ[j,j,d] for j = 1:D])
         end
 
+        # Update state transition matrix
         for d in 1:D
-            # Update state transition matrix
             Σ[:,:,d] = inv(diagm(α./β) + (m0*m0'+S0) + sum([m[:,k]*m[:,k]' + S[:,:,k] for k in 1:T-1]))
             μ[d,:] = Σ[:,:,d]*sum(cat([[m[d,1]*m0]; [m[d,k]*m[:,k-1] for k in 2:T]]...,dims=2),dims=2)[:,1]
         end
