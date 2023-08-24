@@ -2,8 +2,8 @@ using LinearAlgebra
 using Distributions
 using Plots
 
-include("./gen_data.jl")
-include("./kalman_filters.jl")
+include("../util/gen_data.jl")
+include("../kalman_filters.jl")
 
 """Experimental parameters"""
 
@@ -41,7 +41,7 @@ plot!(1:T, states[2:end], color="red", label="states")
 """Basic Kalman filter"""
 
 # Call filter
-include("./kalman_filters.jl")
+include("../kalman_filters.jl")
 mx, Px = kalman_filter(observations,
                        transition_coeffs,
                        emission_coeffs,
@@ -58,7 +58,7 @@ plot!(1:T, mx[:],
       color="purple", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig("./viz/LGDS_kf.png")
+savefig("figures/LGDS_kf.png")
 
 "Generate data"
 
@@ -101,7 +101,7 @@ plot!(1:T, mx1[:],
       color="purple", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(p1, "./viz/NLGDS_KF.png")
+savefig(p1, "figures/NLGDS_KF.png")
 
 # Call extended filter with first-order Taylor
 mx2, Px2 = extended_kalman_filter(observations,
@@ -119,7 +119,7 @@ plot!(1:T, mx2[:],
       color="blue", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(p2, "./viz/NLGDS_E1KF.png")
+savefig(p2, "figures/NLGDS_E1KF.png")
 
 # Call extended filter with second-order Taylor
 mx3, Px3 = extended_kalman_filter(observations,
@@ -138,7 +138,7 @@ plot!(1:T, mx3[:],
     color="cyan", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(p3, "./viz/NLGDS_E2KF.png")
+savefig(p3, "figures/NLGDS_E2KF.png")
 
 # Call unscented filter
 mx4, Px4 = unscented_kalman_filter(observations,
@@ -157,7 +157,7 @@ plot!(1:T, mx4[:],
       color="green", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(p4, "./viz/NLGDS_UKF.png")
+savefig(p4, "figures/NLGDS_UKF.png")
 
 plot(p1, p2, p3, p4, layout=(4,1), size=(2000,1600))
-savefig("./viz/NLGDS_filters.png")
+savefig("figures/NLGDS_filters.png")

@@ -1,7 +1,7 @@
 using Distributions
 using Plots
 
-include("../demos/gen_data.jl")
+include("../util/gen_data.jl")
 include("../particle_filters.jl")
 
 """Experimental parameters"""
@@ -63,7 +63,7 @@ plot!(1:T, posterior_mean[2:end],
       color="purple", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(pwd()*"/viz/sis.png")
+savefig("figures/sis.png")
 
 if viz_particles
 
@@ -72,7 +72,7 @@ if viz_particles
     for t = 2:T
         scatter!((t-1).*ones(1,N), samples[t,:], markersize=weights[t,:]*50, markercolor="purple", label="")
     end
-    savefig(pwd()*"/viz/sis_particles.png")
+    savefig("figures/sis_particles.png")
 end
 
 """SIR filter"""
@@ -102,7 +102,7 @@ plot!(1:T, posterior_mean[2:end],
     color="purple", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(pwd()*"/viz/sir.png")
+savefig("figures/sir.png")
 
 if viz_particles
 
@@ -111,7 +111,7 @@ if viz_particles
     for t = 2:T
         scatter!((t-1).*ones(1,N), samples[t,:], markersize=weights[t,:]*50, markercolor="purple", label="")
     end
-    savefig(pwd()*"/viz/sir_particles.png")
+    savefig("figures/sir_particles.png")
 end
 
 """Bootstrap filter"""
@@ -139,7 +139,7 @@ plot!(1:T, posterior_mean[2:end],
     color="purple", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(pwd()*"/viz/bootstrap.png")
+savefig("figures/bootstrap.png")
 
 if viz_particles
 
@@ -148,7 +148,7 @@ if viz_particles
     for t = 2:T
         scatter!((t-1).*ones(1,N), samples[t,:], markersize=weights[t,:]*50, markercolor="purple", label="")
     end
-    savefig(pwd()*"/viz/bootstrap_particles.png")
+    savefig("figures/bootstrap_particles.png")
 end
 
 """RB-SIR filter"""
@@ -187,7 +187,7 @@ plot!(1:T, posterior_mean[2:end],
       color="purple", alpha=0.1, label="")
 xlabel!("time (t)")
 ylabel!("signal")
-savefig(pwd()*"/viz/rb-sir.png")
+savefig("figures/rb-sir.png")
 
 if viz_particles
 
@@ -196,5 +196,5 @@ if viz_particles
     for t = 2:T
         scatter!((t-1).*ones(1,N), samples[t,:], markersize=weights[t,:]*50, markercolor="purple", label="")
     end
-    savefig(pwd()*"/viz/rb-sir_particles.png")
+    savefig("figures/rb-sir_particles.png")
 end
