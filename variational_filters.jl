@@ -112,28 +112,29 @@ function robust_students_t_filter(observations,
 end
 
 function AX_filter(observations::Vector{Vector{Float64}},
-                   C::Matrix, R::Matrix,
+                   Q::Matrix, C::Matrix, R::Matrix,
                    ard_prior::Vector{Gamma{Float64}}, 
                    state_prior::FullNormal;
                    num_iters::Integer=10)
     """
     Ref: Lutinnen (2013). Fast Variational Bayesian Linear State-Space Model. ECML.
 
-    This filter infers both states X and state transition matrix A elements.
+    This filter infers both states and state transition matrix elements.
     """
 
     T = length(observations)
-    D = size(C,2)
+    D = size(Q,1)
 
     m0,S0 = params(state_prior)
     α0    = shape.(ard_prior)
     β0    = rate.( ard_prior)
 
     # Preallocate
-    m = zeros(D,T)
-    S = cat([diagm(ones(D)) for k in 1:T]...,dims=3)
-    μ = diagm(ones(D))
-    Σ = cat([diagm(ones(D)) for d in 1:D]...,dims=3)
+    mx = zeros(D,T)
+    Sx = zeros(D,D,T)
+    Cx = zeros(D,D,T)
+    M = diagm(ones(D))
+    U = cat([diagm(1e-3ones(D)) for d in 1:D]...,dims=3)
     α = ones(D)
     β = ones(D)
 
@@ -144,46 +145,125 @@ function AX_filter(observations::Vector{Vector{Float64}},
         AA = zeros(D,D)
         for i in 1:D
             for j in 1:D
-                AA[i,j] = sum([μ[i,d]*μ[j,d] + Σ[i,j,d] for d in 1:D]) 
+                AA[i,j] = sum([M[i,d]*M[j,d] + U[i,j,d] for d in 1:D]) 
             end
         end
 
-        Ψ_diag = diagm(ones(D)) + AA + C'*inv(R)*C
-        Ψ_offd = -μ'
+        Ψ_diag = inv(Q) + AA + C*inv(R)*C'
+        Ψ_offd = -M'
 
-        S_kmin1 = inv(inv(S0) + AA)
-        m_kmin1 = S_kmin1*inv(S0)*m0
+        Sx_00 = inv(inv(S0) + AA)
+        mx_0 = Sx_00*inv(S0)*m0
+        Cx[:,:,1] = Sx_00*Ψ_offd
+        Sx[:,:,1] = inv(Ψ_diag - Cx[:,:,1]'*Ψ_offd)
+        mx[:,1]   = Sx[:,:,1]*(C*inv(R)*observations[1] - Cx[:,:,1]'*mx_0)
 
         # Forward pass
-        for k = 1:T-1
-            v_k = C*inv(R)*observations[k]
-            S_pred = S_kmin1*Ψ_offd
-            S[:,:,k] = inv(Ψ_diag - S_pred'*Ψ_offd)
-            m[:,k] = S[:,:,k]*(v_k - S_pred'*m_kmin1)
-            
-            S_kmin1 = S[:,:,k]
-            m_kmin1 = m[:,k]
+        for k = 2:T-1
+            Cx[:,:,k] = Sx[:,:,k-1]*Ψ_offd
+            Sx[:,:,k] = inv(Ψ_diag - Cx[:,:,k]'*Ψ_offd)
+            mx[:,k]   = Sx[:,:,k]*(C*inv(R)*observations[k] - Cx[:,:,k]'*mx[:,k-1])
         end
 
         # Update for final step
-        v_k = C*inv(R)*observations[T]
-        S_pred = S_kmin1*Ψ_offd
-        S[:,:,T] = inv(diagm(ones(D)) + C'*inv(R)*C - S_pred'*Ψ_offd)
-        m[:,T] = S[:,:,T]*(v_k - S_pred'*m_kmin1)
+        Cx[:,:,T] = Sx[:,:,T-1]*Ψ_offd
+        Sx[:,:,T] = inv(inv(Q) + C'*inv(R)*C - Cx[:,:,T]'*Ψ_offd)
+        mx[:,T]   = Sx[:,:,T]*(C*inv(R)*observations[T] - Cx[:,:,T]'*mx[:,T-1])
 
         "Parameter estimation"
         
         # Update relevance variables
         for d in 1:D
             α[d] = α0[d] + D/2
-            β[d] = β0[d] + 1/2*sum([μ[j,d]^2 + Σ[j,j,d] for j = 1:D])
+            β[d] = β0[d] + 1/2*sum([M[j,d]^2 + U[j,j,d] for j = 1:D])
         end
 
         # Update state transition matrix
         for d in 1:D
-            Σ[:,:,d] = inv(diagm(α./β) + (m0*m0'+S0) + sum([m[:,k]*m[:,k]' + S[:,:,k] for k in 1:T-1]))
-            μ[d,:] = Σ[:,:,d]*sum(cat([[m[d,1]*m0]; [m[d,k]*m[:,k-1] for k in 2:T]]...,dims=2),dims=2)[:,1]
+            U[:,:,d] = inv(diagm(α./β) + (mx_0*mx_0'+Sx_00) + sum([mx[:,k]*mx[:,k]' + Sx[:,:,k] for k in 1:T-1]))
+
+            XX = mx[d,1]*mx_0
+            for n = 2:T
+                XX += mx[d,n]*mx[:,n-1] + Cx[:,d,n-1]
+            end
+            M[d,:] = transpose(U[:,:,d]*XX)
         end
     end
-    return m,S,μ,Σ,α,β
+    return mx,Sx,Cx, M,U, α,β
+end
+
+function AX_filter2(observations::Vector{Vector{Float64}},
+                   Q::Matrix, C::Matrix, R::Matrix,
+                   ard_prior::Vector{Gamma{Float64}}, 
+                   state_prior::FullNormal;
+                   num_iters::Integer=10)
+    """
+    Ref: Lutinnen (2013). Fast Variational Bayesian Linear State-Space Model. ECML.
+
+    This filter infers both states and state transition matrix elements.
+    """
+
+    m0,S0 = params(state_prior)
+    α0    = shape.(ard_prior)
+    β0    = rate.( ard_prior)
+
+    T = length(observations)
+    D = length(m0)
+
+    # Preallocate
+    mx = zeros(D,T)
+    Sx = zeros(D,D,T)
+    Cx = zeros(D,D,T)
+    M = diagm(ones(D))
+    U = diagm(ones(D))
+    V = diagm(ones(D))
+    α = ones(D)
+    β = ones(D)
+
+    for _ = 1:num_iters
+
+        "State estimation"
+
+        AA = M'*M + V*tr(U)
+        P_lik = C'*inv(R)*C
+
+        S_00 = inv(inv(S0) + AA)
+        m_0 = S_00*inv(S0)*m0
+        
+        P_prior = inv(M*S_00*M' + Q)
+        Cx[:,:,1] = M*S_00
+        Sx[:,:,1] = inv(P_prior + P_lik)
+        mx[:,1]   = Sx[:,:,1]*(P_prior*M*m_0 + C'*inv(R)*observations[1])
+
+        # Forward pass
+        for k = 2:T
+            P_prior = inv(M*Sx[:,:,k-1]*M' + Q)
+            Cx[:,:,k] = M*Sx[:,:,k-1]
+            Sx[:,:,k] = inv(P_prior + P_lik)
+            mx[:,k]   = Sx[:,:,k]*(P_prior*M*mx[:,k-1] + C'*inv(R)*observations[k])
+        end
+
+        "Parameter estimation"
+        
+        # Update relevance variables
+        for d in 1:D
+            α[d] = α0[d] + D/2
+            β[d] = β0[d] + 1/2*sum([M[j,d]^2 + U[j,d] for j = 1:D])
+        end
+
+        # Matrix normal row covariance
+        XX = m_0*m_0' + S_00
+        for k = 2:T
+            XX += mx[:,k-1]*mx[:,k-1]' + Sx[:,:,k-1]
+        end
+        U = inv(diagm(α./β) + XX)
+
+        # Matrix normal mean
+        XC = zeros(D,D)
+        for k = 2:T
+            XC += mx[:,k]*mx[:,k-1]' + Cx[:,:,k]
+        end
+        M = U*XC
+    end
+    return mx,Sx,Cx, M,U, α,β
 end
